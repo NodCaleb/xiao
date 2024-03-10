@@ -1,15 +1,33 @@
 #include <TimerTC3.h>
 #include<Wire.h>
+#include <FastLED.h>
+
+#define NUM_LEDS 30
+#define STRIPE_PIN 10
+#define FLASHLIGHT_PIN 9
+#define ACCS_INTERVAL 10
+#define STRIPE_INTERVAL 10
+
 const int MPU_addr=0x68;  // I2C address of the MPU-6050
 int16_t AcX,AcY,AcZ,Tmp,GyX,GyY,GyZ;
-int led = D10;
 
 int secondsTicks = 0;
 int accsTicks = 0;
+int stripeTicks = 0;
 int ledMillis = 0;
 bool readAccelerometer = false;
 bool sweepDetected = false;
 bool stopDetected = false;
+
+CRGB leds[NUM_LEDS];
+
+uint8_t fade[9] = { 255, 236, 192, 128, 64, 32, 16, 4, 1 };
+uint8_t colors[4] = { 10, 83, 96, 164 };
+uint8_t colorIndex = 0;
+int stripePosition = -10;
+bool stripeEnabled = false;
+bool stripeUpdateRequired = false;
+static uint8_t brightness = 0;
 
 void setup() {
   // put your setup code here, to run once:
@@ -24,7 +42,8 @@ void setup() {
 
   Serial.begin(9600);
 
-  pinMode(led, OUTPUT);
+  pinMode(FLASHLIGHT_PIN, OUTPUT);
+  FastLED.addLeds<WS2811, STRIPE_PIN, RGB>(leds, NUM_LEDS);
 }
 
 void loop() {
@@ -33,23 +52,46 @@ void loop() {
     readAccelerometer = false;
     readAccelerometerData();
     
-    if (abs(GyX) > 25000 || abs(GyY) > 25000 || abs(GyZ) > 25000) sweepDetected = true;
-    if (sweepDetected && abs(GyX) < 500 && abs(GyY) < 500 && abs(GyZ) < 500) stopDetected = true;
+    // if (abs(GyX) > 25000 || abs(GyY) > 25000 || abs(GyZ) > 25000) sweepDetected = true;
+
+    if (GyX > 25000){
+      sweepDetected = true;
+      colorIndex = 0;
+    }
+
+    if (GyX < -25000){
+      sweepDetected = true;
+      colorIndex = 1;
+    }
+
+    if (GyZ > 25000){
+      sweepDetected = true;
+      colorIndex = 2;
+    }
+
+    if (GyZ < -25000){
+      sweepDetected = true;
+      colorIndex = 3;
+    }
+
+    if (sweepDetected && abs(GyX) < 500 && abs(GyZ) < 500) stopDetected = true;
 
     if (sweepDetected && stopDetected){
       sweepDetected = false;
       stopDetected = false;
-      ledMillis = 2000;
+      stripePosition = -10;
+      stripeEnabled = true;
     }
 
   }
 
-  if (ledMillis > 0){
-    digitalWrite(led, HIGH); 
+  if (stripeUpdateRequired){
+    updateStripe();
+    stripeUpdateRequired = false;
   }
-  else{
-    digitalWrite(led, LOW); 
-  }
+
+  
+
 }
 
 void millisTick()
@@ -62,12 +104,26 @@ void millisTick()
   }
 
   accsTicks++;
-  if (accsTicks == 10){
+  if (accsTicks == ACCS_INTERVAL){
     accsTicks = 0;
     readAccelerometer = true;
   }
 
-  if (ledMillis > 0) ledMillis--;
+  stripeTicks++;
+  if (stripeTicks == STRIPE_INTERVAL){
+    stripeTicks = 0;
+    if (stripeEnabled){
+      shiftStripe();
+    }
+  }
+
+  // if (ledMillis > 0) ledMillis--;
+  // else{
+  //   ledMillis = 5000;
+    
+  //   stripePosition = -10;
+  //   stripeEnabled = true;
+  // }
 }
 
 void secondTick(){
@@ -88,3 +144,21 @@ void readAccelerometerData(){
   GyZ=Wire.read()<<8|Wire.read();  // 0x47 (GYRO_ZOUT_H) & 0x48 (GYRO_ZOUT_L)
 }
 
+void updateStripe(){
+  for (int i = 0; i < NUM_LEDS; i++) {
+    if (abs(i - stripePosition) > 8) brightness = 0;
+    else brightness = fade[abs(i - stripePosition)];
+    leds[i] = CHSV(colors[colorIndex], 255, brightness);
+  }
+  FastLED.show();
+}
+
+void shiftStripe(){
+  if (stripePosition < NUM_LEDS + 10){
+    stripePosition++;
+    stripeUpdateRequired = true;
+  }
+  else{
+    stripeEnabled = false;
+  }
+}
