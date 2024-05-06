@@ -2,15 +2,14 @@
 #define NUM_LEDS 22
 #define STRIP_WIDTH 11
 #define LED_PIN 10
-#define DELAY_TIME 30
+#define DELAY_TIME 50
 CRGB leds[NUM_LEDS];
 int step = 0;
-// uint8_t fade[11] = { 255, 255, 236, 192, 128, 64, 32, 16, 4, 1, 1 };
-uint8_t fade[11] = { 255, 255, 255, 255, 236, 192, 128, 64, 32, 16, 4 };
+uint8_t fade[NUM_LEDS] = { 63,	79,	95,	111,	127,	175,	207,	239,	239,	255,	255,	255,	255,	239,	239,	207,	175,	127,	111,	95,	79,	63 };
+uint8_t colors[NUM_LEDS] = { 83,	84,	85,	86,	87,	90,	92,	94,	94,	95,	95,	95,	95,	94,	94,	92,	90,	87,	86,	85,	84,	83 };
 int directDelta;
 int loopDelta;
-int color = 80;
-bool colorForward = true;
+int ledPropertiesIndex = 0;
 
 void setup() {
   // put your setup code here, to run once:
@@ -18,23 +17,16 @@ void setup() {
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
   for (int i = 0; i < NUM_LEDS; i++){
-    // if (i >= step && i < step + STRIP_WIDTH || step > NUM_LEDS - STRIP_WIDTH && (i >= step || i < step + STRIP_WIDTH - NUM_LEDS)) leds[i] = CHSV(164, 255, 255);
-    // else leds[i] = CHSV(164, 255, 0);
 
-    leds[i] = CHSV(color, 255, fade[circleDelta(step, i)]);
+    ledPropertiesIndex = abs(step - i);
+    leds[i] = CHSV(colors[ledPropertiesIndex], 255, fade[ledPropertiesIndex]);
 
   }
   FastLED.show();
   
   step++;
   if (step == NUM_LEDS) step = 0;
-
-  if (colorForward) color++;
-  else color--;
-
-  if (color == 80 || color == 120) colorForward = !colorForward;
 
   delay(DELAY_TIME);
 }
