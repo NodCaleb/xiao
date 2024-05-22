@@ -2,12 +2,12 @@
 #include<U8g2lib.h>//Use U8g2 library
 
 // Determine whether to use SPI or I2C protocol
-#ifdef U8X8_HAVE_HW_SPI
-#include<SPI.h>
-#endif
-#ifdef U8X8_HAVE_HW_I2C
+// #ifdef U8X8_HAVE_HW_SPI
+// #include<SPI.h>
+// #endif
+// #ifdef U8X8_HAVE_HW_I2C
 #include<Wire.h>
-#endif
+// #endif
 
 float sin_values[360] = {
   0.0000,
