@@ -8,6 +8,9 @@
 #define ACCS_INTERVAL 10
 #define STRIPE_INTERVAL 10
 #define SWEEP_ACCELERATION 25000
+#define BUTTON_PIN 1
+#define LED_PIN 2
+#define BUTTON_DEBOUNCE 100
 
 const int MPU_addr=0x68;  // I2C address of the MPU-6050
 int16_t AcX,AcY,AcZ,Tmp,GyX,GyY,GyZ;
@@ -16,9 +19,11 @@ int secondsTicks = 0;
 int accsTicks = 0;
 int stripeTicks = 0;
 int ledMillis = 0;
+int buttonMillis = 0;
 bool readAccelerometer = false;
 bool sweepDetected = false;
 bool stopDetected = false;
+bool ledState = false;
 int16_t xAcceleration = 0;
 int16_t zAcceleration = 0;
 
@@ -114,6 +119,11 @@ void setup() {
 
   pinMode(FLASHLIGHT_PIN, OUTPUT);
   FastLED.addLeds<WS2811, STRIPE_PIN, RGB>(leds, NUM_LEDS);
+
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+  pinMode(LED_PIN, OUTPUT);
+
+  attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), buttonInterrupt, FALLING);
 }
 
 void loop() {
@@ -154,8 +164,6 @@ void loop() {
     stripeUpdateRequired = false;
   }
 
-  
-
 }
 
 void millisTick()
@@ -180,6 +188,8 @@ void millisTick()
       shiftStripe();
     }
   }
+
+  if (buttonMillis > 0) buttonMillis--;
 }
 
 void secondTick(){
@@ -228,3 +238,15 @@ int detectAngleStep(int16_t x, int16_t z){
   return 63;
 }
 
+void switchLedDebounced(){
+  if (buttonMillis == 0){
+    buttonMillis = BUTTON_DEBOUNCE;
+    ledState = !ledState;
+    digitalWrite(LED_PIN, ledState);
+    Serial.println(ledState);
+  }
+}
+
+void buttonInterrupt(){
+  switchLedDebounced();
+}
