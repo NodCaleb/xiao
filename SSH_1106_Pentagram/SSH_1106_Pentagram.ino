@@ -781,7 +781,7 @@ void drawPentagram(int x, int y, int rad, int angle) {
     // Serial.print(" ");
     // Serial.println(yc);
 
-    u8g2.drawLine(xa, ya, xc, yc);
+    n
     u8g2.drawLine(xc, yc, xe, ye);
     u8g2.drawLine(xb, yb, xe, ye);
     u8g2.drawLine(xb, yb, xd, yd);

@@ -7,6 +7,7 @@
 #define FLASHLIGHT_PIN 9
 #define ACCS_INTERVAL 10
 #define STRIPE_INTERVAL 10
+#define SWEEP_ACCELERATION 25000
 
 const int MPU_addr=0x68;  // I2C address of the MPU-6050
 int16_t AcX,AcY,AcZ,Tmp,GyX,GyY,GyZ;
@@ -18,16 +19,85 @@ int ledMillis = 0;
 bool readAccelerometer = false;
 bool sweepDetected = false;
 bool stopDetected = false;
+int16_t xAcceleration = 0;
+int16_t zAcceleration = 0;
 
 CRGB leds[NUM_LEDS];
 
 uint8_t fade[9] = { 255, 236, 192, 128, 64, 32, 16, 4, 1 };
-uint8_t colors[4] = { 10, 83, 96, 164 };
-uint8_t colorIndex = 0;
+uint8_t color = 0;
+uint8_t sectorIndex = 0;
+float vectorsRatio = 0.000;
 int stripePosition = -10;
 bool stripeEnabled = false;
 bool stripeUpdateRequired = false;
 static uint8_t brightness = 0;
+float angle_step_tans[64] = {
+  0.0000,
+  0.0245,
+  0.0491,
+  0.0738,
+  0.0985,
+  0.1233,
+  0.1483,
+  0.1735,
+  0.1989,
+  0.2246,
+  0.2505,
+  0.2767,
+  0.3033,
+  0.3304,
+  0.3578,
+  0.3857,
+  0.4142,
+  0.4433,
+  0.4730,
+  0.5034,
+  0.5345,
+  0.5665,
+  0.5994,
+  0.6332,
+  0.6682,
+  0.7043,
+  0.7417,
+  0.7804,
+  0.8207,
+  0.8626,
+  0.9063,
+  0.9521,
+  1.0000,
+  1.0503,
+  1.1033,
+  1.1593,
+  1.2185,
+  1.2814,
+  1.3483,
+  1.4199,
+  1.4966,
+  1.5792,
+  1.6684,
+  1.7652,
+  1.8709,
+  1.9867,
+  2.1143,
+  2.2560,
+  2.4142,
+  2.5924,
+  2.7948,
+  3.0270,
+  3.2966,
+  3.6135,
+  3.9922,
+  4.4532,
+  5.0273,
+  5.7631,
+  6.7415,
+  8.1078,
+  10.1532,
+  13.5567,
+  20.3555,
+  40.7355
+ };
 
 void setup() {
   // put your setup code here, to run once:
@@ -51,27 +121,11 @@ void loop() {
   if (readAccelerometer){
     readAccelerometer = false;
     readAccelerometerData();
-    
-    // if (abs(GyX) > 25000 || abs(GyY) > 25000 || abs(GyZ) > 25000) sweepDetected = true;
 
-    if (GyX > 25000){
+    if (sqrt(sq(GyX) + sq(GyZ)) >= SWEEP_ACCELERATION){
       sweepDetected = true;
-      colorIndex = 0;
-    }
-
-    if (GyX < -25000){
-      sweepDetected = true;
-      colorIndex = 1;
-    }
-
-    if (GyZ > 25000){
-      sweepDetected = true;
-      colorIndex = 2;
-    }
-
-    if (GyZ < -25000){
-      sweepDetected = true;
-      colorIndex = 3;
+      xAcceleration = GyX;
+      zAcceleration = GyZ;
     }
 
     if (sweepDetected && abs(GyX) < 500 && abs(GyZ) < 500) stopDetected = true;
@@ -79,8 +133,18 @@ void loop() {
     if (sweepDetected && stopDetected){
       sweepDetected = false;
       stopDetected = false;
+
+      if (xAcceleration > 0 && zAcceleration > 0) sectorIndex = 0;
+      else if (xAcceleration > 0 && zAcceleration < 0) sectorIndex = 1;
+      else if (xAcceleration < 0 && zAcceleration < 0) sectorIndex = 2;
+      else sectorIndex = 3;
+
+      color = detectAngleStep(abs(xAcceleration), abs(zAcceleration)) + 64 * sectorIndex;
       stripePosition = -10;
       stripeEnabled = true;
+
+      // Serial.print("Color: ");
+      // Serial.println(color);
     }
 
   }
@@ -116,18 +180,10 @@ void millisTick()
       shiftStripe();
     }
   }
-
-  // if (ledMillis > 0) ledMillis--;
-  // else{
-  //   ledMillis = 5000;
-    
-  //   stripePosition = -10;
-  //   stripeEnabled = true;
-  // }
 }
 
 void secondTick(){
-  Serial.print(".");
+  // Serial.print(".");
 }
 
 void readAccelerometerData(){
@@ -148,7 +204,7 @@ void updateStripe(){
   for (int i = 0; i < NUM_LEDS; i++) {
     if (abs(i - stripePosition) > 8) brightness = 0;
     else brightness = fade[abs(i - stripePosition)];
-    leds[i] = CHSV(colors[colorIndex], 255, brightness);
+    leds[i] = CHSV(color, 255, brightness);
   }
   FastLED.show();
 }
@@ -162,3 +218,13 @@ void shiftStripe(){
     stripeEnabled = false;
   }
 }
+
+int detectAngleStep(int16_t x, int16_t z){
+  if (z == 0) return 63;
+  vectorsRatio = x/z;
+  for (int i = 0; i < 64; i++){
+    if (angle_step_tans[i] > vectorsRatio) return i;
+  }
+  return 63;
+}
+
