@@ -4,13 +4,14 @@
 
 #define NUM_LEDS 30
 #define STRIPE_PIN 10
-#define FLASHLIGHT_PIN 9
+#define FLASHLIGHT_PIN 3
 #define ACCS_INTERVAL 10
 #define STRIPE_INTERVAL 10
 #define SWEEP_ACCELERATION 25000
 #define BUTTON_PIN 1
-#define LED_PIN 2
+#define EYES_PIN 2
 #define BUTTON_DEBOUNCE 100
+#define LONG_PRESS 1500
 
 const int MPU_addr=0x68;  // I2C address of the MPU-6050
 int16_t AcX,AcY,AcZ,Tmp,GyX,GyY,GyZ;
@@ -19,11 +20,14 @@ int secondsTicks = 0;
 int accsTicks = 0;
 int stripeTicks = 0;
 int ledMillis = 0;
-int buttonMillis = 0;
+int buttonDebounceMillis = 0;
+int buttonPressedMillis = 0;
 bool readAccelerometer = false;
 bool sweepDetected = false;
 bool stopDetected = false;
-bool ledState = false;
+bool eyesState = false;
+bool flashlightState = false;
+bool buttonPressed = false;
 int16_t xAcceleration = 0;
 int16_t zAcceleration = 0;
 
@@ -121,9 +125,9 @@ void setup() {
   FastLED.addLeds<WS2811, STRIPE_PIN, RGB>(leds, NUM_LEDS);
 
   pinMode(BUTTON_PIN, INPUT_PULLUP);
-  pinMode(LED_PIN, OUTPUT);
+  pinMode(EYES_PIN, OUTPUT);
 
-  attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), buttonInterrupt, FALLING);
+  attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), buttonInterrupt, CHANGE);
 }
 
 void loop() {
@@ -189,7 +193,15 @@ void millisTick()
     }
   }
 
-  if (buttonMillis > 0) buttonMillis--;
+  if (buttonDebounceMillis > 0) buttonDebounceMillis--;
+
+  if (buttonPressed) buttonPressedMillis++;
+
+  if (buttonPressedMillis >= LONG_PRESS){
+    buttonPressed = false;
+    buttonPressedMillis = 0;
+    switchEyes();
+  }
 }
 
 void secondTick(){
@@ -238,15 +250,29 @@ int detectAngleStep(int16_t x, int16_t z){
   return 63;
 }
 
-void switchLedDebounced(){
-  if (buttonMillis == 0){
-    buttonMillis = BUTTON_DEBOUNCE;
-    ledState = !ledState;
-    digitalWrite(LED_PIN, ledState);
-    Serial.println(ledState);
-  }
+void switchEyes(){
+  eyesState = !eyesState;
+  digitalWrite(EYES_PIN, eyesState);
+}
+
+void switchFlashlight(){
+  flashlightState = !flashlightState;
+  digitalWrite(FLASHLIGHT_PIN, flashlightState);
 }
 
 void buttonInterrupt(){
-  switchLedDebounced();
+  if (buttonDebounceMillis == 0){
+    buttonDebounceMillis = BUTTON_DEBOUNCE;
+    if (!digitalRead(BUTTON_PIN)){
+      buttonPressed = true;
+      buttonPressedMillis = 0;
+    }
+    else{
+      if (buttonPressed){
+        buttonPressed = false;
+        buttonPressedMillis = 0;
+        switchFlashlight();
+      }
+    }    
+  }
 }
